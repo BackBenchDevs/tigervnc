@@ -14,6 +14,8 @@ A modern, cross-platform VNC viewer built in Rust with an [egui](https://github.
 - Internationalization via Project Fluent (automatic locale detection)
 - Cross-platform: Linux, macOS (Intel + Apple Silicon), Windows
 
+See [FEATURES.md](FEATURES.md) for detailed documentation on each feature.
+
 ## Building
 
 ### Prerequisites
