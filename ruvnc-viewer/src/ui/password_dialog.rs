@@ -63,10 +63,7 @@ impl PasswordDialog {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    ui.label(format!(
-                        "Server: {}:{}",
-                        self.host, self.port
-                    ));
+                    ui.label(format!("Server: {}:{}", self.host, self.port));
                     ui.add_space(4.0);
 
                     egui::Grid::new("password_form")

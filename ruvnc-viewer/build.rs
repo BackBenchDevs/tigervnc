@@ -17,7 +17,8 @@ fn generate_config_h(out_dir: &Path, cmake_build_dir: &Path) {
     let config_dst = out_dir.join("config.h");
     let cmake_config = cmake_build_dir.join("config.h");
     if cmake_config.exists() {
-        std::fs::copy(&cmake_config, &config_dst).expect("Failed to copy config.h from CMake build");
+        std::fs::copy(&cmake_config, &config_dst)
+            .expect("Failed to copy config.h from CMake build");
     } else {
         std::fs::write(
             &config_dst,
@@ -111,9 +112,16 @@ fn build_vnc_core(common_dir: &Path) {
 
     // core sources
     let core_sources = [
-        "Configuration.cxx", "Exception.cxx", "Logger.cxx",
-        "Logger_file.cxx", "Logger_stdio.cxx", "LogWriter.cxx",
-        "Region.cxx", "Timer.cxx", "string.cxx", "time.cxx",
+        "Configuration.cxx",
+        "Exception.cxx",
+        "Logger.cxx",
+        "Logger_file.cxx",
+        "Logger_stdio.cxx",
+        "LogWriter.cxx",
+        "Region.cxx",
+        "Timer.cxx",
+        "string.cxx",
+        "time.cxx",
         "xdgdirs.cxx",
     ];
     for src in &core_sources {
@@ -125,12 +133,22 @@ fn build_vnc_core(common_dir: &Path) {
 
     // rdr sources
     let rdr_sources = [
-        "AESInStream.cxx", "AESOutStream.cxx",
-        "BufferedInStream.cxx", "BufferedOutStream.cxx",
-        "FdInStream.cxx", "FdOutStream.cxx", "FileInStream.cxx",
-        "HexInStream.cxx", "HexOutStream.cxx", "RandomStream.cxx",
-        "TLSException.cxx", "TLSInStream.cxx", "TLSOutStream.cxx",
-        "TLSSocket.cxx", "ZlibInStream.cxx", "ZlibOutStream.cxx",
+        "AESInStream.cxx",
+        "AESOutStream.cxx",
+        "BufferedInStream.cxx",
+        "BufferedOutStream.cxx",
+        "FdInStream.cxx",
+        "FdOutStream.cxx",
+        "FileInStream.cxx",
+        "HexInStream.cxx",
+        "HexOutStream.cxx",
+        "RandomStream.cxx",
+        "TLSException.cxx",
+        "TLSInStream.cxx",
+        "TLSOutStream.cxx",
+        "TLSSocket.cxx",
+        "ZlibInStream.cxx",
+        "ZlibOutStream.cxx",
     ];
     for src in &rdr_sources {
         build.file(rdr_dir.join(src));
@@ -145,26 +163,60 @@ fn build_vnc_core(common_dir: &Path) {
 
     // rfb sources
     let rfb_sources = [
-        "AccessRights.cxx", "Blacklist.cxx", "Congestion.cxx",
-        "CConnection.cxx", "CMsgReader.cxx", "CMsgWriter.cxx",
-        "CSecurityPlain.cxx", "CSecurityStack.cxx",
-        "CSecurityVeNCrypt.cxx", "CSecurityVncAuth.cxx",
-        "ClientParams.cxx", "ComparingUpdateTracker.cxx",
-        "CopyRectDecoder.cxx", "Cursor.cxx", "DecodeManager.cxx",
-        "Decoder.cxx", "d3des.c", "EncodeManager.cxx", "Encoder.cxx",
-        "HextileDecoder.cxx", "HextileEncoder.cxx",
-        "JpegCompressor.cxx", "JpegDecompressor.cxx",
-        "JPEGDecoder.cxx", "JPEGEncoder.cxx", "KeyRemapper.cxx",
-        "KeysymStr.c", "PixelBuffer.cxx", "PixelFormat.cxx",
-        "RREEncoder.cxx", "RREDecoder.cxx", "RawDecoder.cxx",
-        "RawEncoder.cxx", "SConnection.cxx", "SMsgReader.cxx",
-        "SMsgWriter.cxx", "ServerCore.cxx", "ServerParams.cxx",
-        "Security.cxx", "SecurityServer.cxx", "SecurityClient.cxx",
-        "SSecurityPlain.cxx", "SSecurityStack.cxx",
-        "SSecurityVncAuth.cxx", "SSecurityVeNCrypt.cxx",
-        "TightDecoder.cxx", "TightEncoder.cxx", "TightJPEGEncoder.cxx",
-        "UpdateTracker.cxx", "VNCSConnectionST.cxx", "VNCServerST.cxx",
-        "ZRLEEncoder.cxx", "ZRLEDecoder.cxx", "encodings.cxx",
+        "AccessRights.cxx",
+        "Blacklist.cxx",
+        "Congestion.cxx",
+        "CConnection.cxx",
+        "CMsgReader.cxx",
+        "CMsgWriter.cxx",
+        "CSecurityPlain.cxx",
+        "CSecurityStack.cxx",
+        "CSecurityVeNCrypt.cxx",
+        "CSecurityVncAuth.cxx",
+        "ClientParams.cxx",
+        "ComparingUpdateTracker.cxx",
+        "CopyRectDecoder.cxx",
+        "Cursor.cxx",
+        "DecodeManager.cxx",
+        "Decoder.cxx",
+        "d3des.c",
+        "EncodeManager.cxx",
+        "Encoder.cxx",
+        "HextileDecoder.cxx",
+        "HextileEncoder.cxx",
+        "JpegCompressor.cxx",
+        "JpegDecompressor.cxx",
+        "JPEGDecoder.cxx",
+        "JPEGEncoder.cxx",
+        "KeyRemapper.cxx",
+        "KeysymStr.c",
+        "PixelBuffer.cxx",
+        "PixelFormat.cxx",
+        "RREEncoder.cxx",
+        "RREDecoder.cxx",
+        "RawDecoder.cxx",
+        "RawEncoder.cxx",
+        "SConnection.cxx",
+        "SMsgReader.cxx",
+        "SMsgWriter.cxx",
+        "ServerCore.cxx",
+        "ServerParams.cxx",
+        "Security.cxx",
+        "SecurityServer.cxx",
+        "SecurityClient.cxx",
+        "SSecurityPlain.cxx",
+        "SSecurityStack.cxx",
+        "SSecurityVncAuth.cxx",
+        "SSecurityVeNCrypt.cxx",
+        "TightDecoder.cxx",
+        "TightEncoder.cxx",
+        "TightJPEGEncoder.cxx",
+        "UpdateTracker.cxx",
+        "VNCSConnectionST.cxx",
+        "VNCServerST.cxx",
+        "ZRLEEncoder.cxx",
+        "ZRLEDecoder.cxx",
+        "encodings.cxx",
         "obfuscate.cxx",
     ];
     for src in &rfb_sources {
@@ -226,9 +278,7 @@ fn build_vnc_core(common_dir: &Path) {
 
 fn build_bridge(common_dir: &Path, bridge_dir: &Path) {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    let sources = vec![
-        bridge_dir.join("src").join("headless_conn.cc"),
-    ];
+    let sources = vec![bridge_dir.join("src").join("headless_conn.cc")];
 
     cxx_build::bridge("src/bridge.rs")
         .files(sources)

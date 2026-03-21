@@ -29,17 +29,11 @@ fn main() -> eframe::Result<()> {
         env_logger::Env::default().default_filter_or("ruvnc_viewer=debug,warn"),
     )
     .init();
-    info!(
-        "RuVNC Viewer v{} starting",
-        env!("CARGO_PKG_VERSION")
-    );
+    info!("RuVNC Viewer v{} starting", env!("CARGO_PKG_VERSION"));
 
     let config_path = address_book::AddressBook::storage_path();
     info!("Config path: {}", config_path.display());
-    debug!(
-        "Config file exists: {}",
-        config_path.exists()
-    );
+    debug!("Config file exists: {}", config_path.exists());
 
     let options = NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -312,7 +306,11 @@ mod integration_tests {
                 host: format!("h{}", i),
                 ..Default::default()
             };
-            entry.group = if i < 3 { "A".to_string() } else { "B".to_string() };
+            entry.group = if i < 3 {
+                "A".to_string()
+            } else {
+                "B".to_string()
+            };
             book.add(entry);
         }
 

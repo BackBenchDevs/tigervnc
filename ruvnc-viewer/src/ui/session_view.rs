@@ -107,15 +107,24 @@ impl SessionView {
                 ui.spacing_mut().item_spacing.x = 4.0;
 
                 let current = self.renderer.zoom_mode().clone();
-                if ui.selectable_label(current == ZoomMode::Fit, "Fit").clicked() {
+                if ui
+                    .selectable_label(current == ZoomMode::Fit, "Fit")
+                    .clicked()
+                {
                     self.renderer.set_zoom_mode(ZoomMode::Fit);
                 }
-                if ui.selectable_label(current == ZoomMode::OneToOne, "1:1").clicked() {
+                if ui
+                    .selectable_label(current == ZoomMode::OneToOne, "1:1")
+                    .clicked()
+                {
                     self.renderer.set_zoom_mode(ZoomMode::OneToOne);
                 }
                 for pct in [50, 75, 100, 125, 150, 200] {
                     let mode = ZoomMode::Fixed(pct as f32 / 100.0);
-                    if ui.selectable_label(current == mode, format!("{}%", pct)).clicked() {
+                    if ui
+                        .selectable_label(current == mode, format!("{}%", pct))
+                        .clicked()
+                    {
                         self.renderer.set_zoom_mode(mode);
                     }
                 }
@@ -123,7 +132,10 @@ impl SessionView {
                 ui.separator();
                 ui.weak(format!(
                     "{}x{} | frame #{} | {}",
-                    fb_w, fb_h, self.frame_count, self.renderer.backend_name()
+                    fb_w,
+                    fb_h,
+                    self.frame_count,
+                    self.renderer.backend_name()
                 ));
             });
         });
@@ -183,11 +195,7 @@ impl SessionView {
         ui.input(|input| {
             for event in &input.events {
                 match event {
-                    egui::Event::Key {
-                        key,
-                        pressed,
-                        ..
-                    } => {
+                    egui::Event::Key { key, pressed, .. } => {
                         if let Some(sym) = egui_key_to_keysym(key) {
                             self.pending_keys.push(KeyEvent {
                                 key_code: sym,
@@ -394,8 +402,18 @@ mod tests {
     #[test]
     fn test_keysym_f_keys_sequential() {
         let f_keys = [
-            Key::F1, Key::F2, Key::F3, Key::F4, Key::F5, Key::F6,
-            Key::F7, Key::F8, Key::F9, Key::F10, Key::F11, Key::F12,
+            Key::F1,
+            Key::F2,
+            Key::F3,
+            Key::F4,
+            Key::F5,
+            Key::F6,
+            Key::F7,
+            Key::F8,
+            Key::F9,
+            Key::F10,
+            Key::F11,
+            Key::F12,
         ];
         for (i, key) in f_keys.iter().enumerate() {
             let expected = 0xffbe + i as u32;
