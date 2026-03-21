@@ -138,9 +138,13 @@ pub fn poll_error() -> Option<String> {
 }
 
 pub fn poll_cursor_data() -> Option<(i32, i32, i32, i32, Vec<u8>)> {
-    BRIDGE.inner.lock().ok()?.cursor_data.take().map(|c| {
-        (c.width, c.height, c.hotspot_x, c.hotspot_y, c.data)
-    })
+    BRIDGE
+        .inner
+        .lock()
+        .ok()?
+        .cursor_data
+        .take()
+        .map(|c| (c.width, c.height, c.hotspot_x, c.hotspot_y, c.data))
 }
 
 pub fn poll_clipboard() -> Option<String> {
@@ -196,7 +200,10 @@ fn on_init_done(width: i32, height: i32) {
 fn on_frame_updated(rect: &ffi::DamageRect) {
     log::debug!(
         "Frame updated: region ({},{}) {}x{}",
-        rect.x, rect.y, rect.w, rect.h
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
     );
     if let Ok(mut state) = BRIDGE.inner.lock() {
         state.damage_rects.push(rect.clone());
@@ -204,7 +211,11 @@ fn on_frame_updated(rect: &ffi::DamageRect) {
 }
 
 fn on_get_credentials(secure: bool, need_username: bool) -> ffi::CredentialResult {
-    log::info!("Credential request (secure={}, need_username={})", secure, need_username);
+    log::info!(
+        "Credential request (secure={}, need_username={})",
+        secure,
+        need_username
+    );
 
     // First check if we already have credentials (pre-provided or from keyring)
     {
@@ -224,7 +235,10 @@ fn on_get_credentials(secure: bool, need_username: bool) -> ffi::CredentialResul
             } else {
                 format!("{}@{}:{}", username, host, port)
             };
-            log::debug!("Checking keyring key='{}' (service='ruvnc-viewer')", keyring_key);
+            log::debug!(
+                "Checking keyring key='{}' (service='ruvnc-viewer')",
+                keyring_key
+            );
             if let Ok(password) = crate::credentials::get_password(&host, port, &username) {
                 log::info!("Found stored password in keyring for {}:{}", host, port);
                 return ffi::CredentialResult {
@@ -312,7 +326,11 @@ fn on_bell() {
 fn on_cursor_changed(width: i32, height: i32, hotspot_x: i32, hotspot_y: i32, data: &[u8]) {
     log::debug!(
         "Cursor changed: {}x{} hotspot=({},{}) data={} bytes",
-        width, height, hotspot_x, hotspot_y, data.len()
+        width,
+        height,
+        hotspot_x,
+        hotspot_y,
+        data.len()
     );
     if let Ok(mut state) = BRIDGE.inner.lock() {
         state.cursor_data = Some(CursorCallbackData {
@@ -352,7 +370,12 @@ mod tests {
 
     #[test]
     fn test_damage_rect_clone() {
-        let rect = ffi::DamageRect { x: 10, y: 20, w: 100, h: 200 };
+        let rect = ffi::DamageRect {
+            x: 10,
+            y: 20,
+            w: 100,
+            h: 200,
+        };
         let cloned = rect.clone();
         assert_eq!(cloned.x, 10);
         assert_eq!(cloned.y, 20);
@@ -362,7 +385,12 @@ mod tests {
 
     #[test]
     fn test_damage_rect_debug() {
-        let rect = ffi::DamageRect { x: 0, y: 0, w: 1920, h: 1080 };
+        let rect = ffi::DamageRect {
+            x: 0,
+            y: 0,
+            w: 1920,
+            h: 1080,
+        };
         let dbg = format!("{:?}", rect);
         assert!(dbg.contains("1920"));
         assert!(dbg.contains("1080"));
@@ -471,8 +499,18 @@ mod tests {
             let mut state = BRIDGE.inner.lock().unwrap();
             state.damage_rects.clear();
         }
-        on_frame_updated(&ffi::DamageRect { x: 0, y: 0, w: 100, h: 100 });
-        on_frame_updated(&ffi::DamageRect { x: 50, y: 50, w: 200, h: 200 });
+        on_frame_updated(&ffi::DamageRect {
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+        });
+        on_frame_updated(&ffi::DamageRect {
+            x: 50,
+            y: 50,
+            w: 200,
+            h: 200,
+        });
         let state = BRIDGE.inner.lock().unwrap();
         assert!(state.damage_rects.len() >= 2);
     }

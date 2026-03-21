@@ -82,12 +82,10 @@ impl AddressBookPanel {
                     .desired_width(250.0),
             );
             let connect_clicked = ui.button("Connect").clicked();
-            let enter_pressed = response.lost_focus()
-                && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let enter_pressed =
+                response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-            if (connect_clicked || enter_pressed)
-                && !self.quick_connect_input.trim().is_empty()
-            {
+            if (connect_clicked || enter_pressed) && !self.quick_connect_input.trim().is_empty() {
                 let (host, port) = Self::parse_host_port(&self.quick_connect_input);
                 self.pending_action = Some(Action::QuickConnect(host, port));
                 self.quick_connect_input.clear();
@@ -105,11 +103,7 @@ impl AddressBookPanel {
             ui.separator();
             ui.label("Group:");
             egui::ComboBox::from_id_salt("group_filter")
-                .selected_text(
-                    self.selected_group
-                        .as_deref()
-                        .unwrap_or("All"),
-                )
+                .selected_text(self.selected_group.as_deref().unwrap_or("All"))
                 .show_ui(ui, |ui| {
                     if ui
                         .selectable_label(self.selected_group.is_none(), "All")
@@ -138,11 +132,7 @@ impl AddressBookPanel {
             .servers
             .iter()
             .filter(|s| s.matches_search(&self.search_query))
-            .filter(|s| {
-                self.selected_group
-                    .as_ref()
-                    .is_none_or(|g| &s.group == g)
-            })
+            .filter(|s| self.selected_group.as_ref().is_none_or(|g| &s.group == g))
             .collect();
 
         if filtered.is_empty() {
@@ -172,21 +162,14 @@ impl AddressBookPanel {
                 if server.group != current_group {
                     current_group = server.group.clone();
                     ui.add_space(8.0);
-                    ui.label(
-                        RichText::new(&current_group)
-                            .strong()
-                            .size(14.0),
-                    );
+                    ui.label(RichText::new(&current_group).strong().size(14.0));
                     ui.separator();
                 }
 
                 let is_selected = self.selected_server.as_deref() == Some(&server.id);
                 let row_height = if server.tags.is_empty() { 44.0 } else { 56.0 };
                 let desired_size = egui::vec2(ui.available_width(), row_height);
-                let (rect, response) = ui.allocate_at_least(
-                    desired_size,
-                    egui::Sense::click(),
-                );
+                let (rect, response) = ui.allocate_at_least(desired_size, egui::Sense::click());
 
                 if response.clicked() {
                     self.selected_server = Some(server.id.clone());
@@ -266,10 +249,7 @@ impl AddressBookPanel {
         });
 
         if let Some(ref id) = self.confirm_delete.clone() {
-            let name = book
-                .find(id)
-                .map(|s| s.name.clone())
-                .unwrap_or_default();
+            let name = book.find(id).map(|s| s.name.clone()).unwrap_or_default();
 
             egui::Window::new("Confirm Delete")
                 .collapsible(false)

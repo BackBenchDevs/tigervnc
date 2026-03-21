@@ -38,8 +38,8 @@ fn detect_locale() -> LanguageIdentifier {
 fn create_bundle(locale: &LanguageIdentifier) -> FluentBundle<FluentResource> {
     let mut bundle = FluentBundle::new_concurrent(vec![locale.clone()]);
 
-    let resource = FluentResource::try_new(EN_US_FTL.to_string())
-        .expect("Failed to parse en-US.ftl");
+    let resource =
+        FluentResource::try_new(EN_US_FTL.to_string()).expect("Failed to parse en-US.ftl");
     bundle
         .add_resource(resource)
         .expect("Failed to add en-US resource to bundle");
@@ -62,7 +62,9 @@ pub fn t(id: &str) -> String {
         None => return id.to_string(),
     };
     let mut errors = vec![];
-    bundle.format_pattern(pattern, None, &mut errors).to_string()
+    bundle
+        .format_pattern(pattern, None, &mut errors)
+        .to_string()
 }
 
 /// Look up a message with named arguments.
@@ -147,12 +149,24 @@ mod tests {
     fn test_pluralization() {
         let one: &dyn FluentArgValue = &1_i64;
         let result = t_args("status-servers", &[("count", one)]);
-        assert!(result.contains("server"), "Expected 'server' in '{}'", result);
-        assert!(!result.contains("servers"), "Should be singular for 1, got '{}'", result);
+        assert!(
+            result.contains("server"),
+            "Expected 'server' in '{}'",
+            result
+        );
+        assert!(
+            !result.contains("servers"),
+            "Should be singular for 1, got '{}'",
+            result
+        );
 
         let many: &dyn FluentArgValue = &5_i64;
         let result = t_args("status-servers", &[("count", many)]);
-        assert!(result.contains("servers"), "Expected 'servers' in '{}'", result);
+        assert!(
+            result.contains("servers"),
+            "Expected 'servers' in '{}'",
+            result
+        );
     }
 
     #[test]

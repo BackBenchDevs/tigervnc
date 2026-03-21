@@ -76,11 +76,7 @@ impl SoftwareRenderer {
                 tex.set(image, tex_opts);
             }
             None => {
-                self.texture = Some(ui.ctx().load_texture(
-                    "vnc_framebuffer",
-                    image,
-                    tex_opts,
-                ));
+                self.texture = Some(ui.ctx().load_texture("vnc_framebuffer", image, tex_opts));
             }
         }
 
@@ -130,11 +126,8 @@ impl SoftwareRenderer {
                         let blend = |fg: u8, bg: u8| -> u8 {
                             (fg as f32 * a + bg as f32 * (1.0 - a)) as u8
                         };
-                        pixels[dst_idx] = Color32::from_rgb(
-                            blend(r, bg.r()),
-                            blend(g, bg.g()),
-                            blend(b, bg.b()),
-                        );
+                        pixels[dst_idx] =
+                            Color32::from_rgb(blend(r, bg.r()), blend(g, bg.g()), blend(b, bg.b()));
                     }
                 }
             }
@@ -157,7 +150,11 @@ impl RenderBackend for SoftwareRenderer {
         self.dirty = true;
     }
 
-    fn render_to_egui(&mut self, ui: &mut Ui, available_size: Vec2) -> Option<(egui::Response, egui::Rect)> {
+    fn render_to_egui(
+        &mut self,
+        ui: &mut Ui,
+        available_size: Vec2,
+    ) -> Option<(egui::Response, egui::Rect)> {
         if self.dirty {
             self.rebuild_texture(ui);
         }
@@ -176,7 +173,9 @@ impl RenderBackend for SoftwareRenderer {
         }
 
         let ppp = ui.ctx().pixels_per_point();
-        let scale = self.zoom_mode.compute_scale(fb_w, fb_h, available_size, ppp);
+        let scale = self
+            .zoom_mode
+            .compute_scale(fb_w, fb_h, available_size, ppp);
 
         let display_w = fb_w as f32 * scale;
         let display_h = fb_h as f32 * scale;
@@ -244,7 +243,9 @@ mod tests {
             height: 2,
             hotspot_x: 0,
             hotspot_y: 0,
-            pixels: vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255],
+            pixels: vec![
+                255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+            ],
         };
         r.composite_cursor(&mut pixels, 10, 10, &cursor);
         assert_eq!(pixels[0], Color32::from_rgb(255, 0, 0));

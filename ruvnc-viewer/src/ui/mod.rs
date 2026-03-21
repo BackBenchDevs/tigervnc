@@ -22,7 +22,9 @@ use crate::bridge;
 use crate::connection::ConnectionManager;
 use crate::renderer::{CursorData, FrameBuffer};
 use crate::sync::TeamSyncManager;
-use egui::{CentralPanel, Context, TopBottomPanel, Ui, ViewportBuilder, ViewportCommand, ViewportId};
+use egui::{
+    CentralPanel, Context, TopBottomPanel, Ui, ViewportBuilder, ViewportCommand, ViewportId,
+};
 use log::{debug, info, warn};
 
 pub use address_book_panel::AddressBookPanel;
@@ -92,16 +94,28 @@ impl App {
         }
     }
 
-    fn start_connection(&mut self, server_id: &str, host: &str, port: u16, username: &str, name: &str) {
+    fn start_connection(
+        &mut self,
+        server_id: &str,
+        host: &str,
+        port: u16,
+        username: &str,
+        name: &str,
+    ) {
         let port = crate::address_book::resolve_port(port);
 
-        if let Some(existing) = self.sessions.iter().find(|s| s.id == server_id && !s.closed) {
+        if let Some(existing) = self
+            .sessions
+            .iter()
+            .find(|s| s.id == server_id && !s.closed)
+        {
             info!("Session '{}' already open, focusing existing window", name);
             self.pending_focus = Some(existing.viewport_id);
             return;
         }
 
-        let viewport_id = ViewportId::from_hash_of(format!("vnc_session_{}", self.next_viewport_idx));
+        let viewport_id =
+            ViewportId::from_hash_of(format!("vnc_session_{}", self.next_viewport_idx));
         self.next_viewport_idx += 1;
 
         let mut connection = ConnectionManager::new();
@@ -185,10 +199,7 @@ impl App {
                     ui.label("Licensed under GPL-2.0-or-later");
                     ui.label("This program comes with ABSOLUTELY NO WARRANTY.");
                     ui.add_space(4.0);
-                    ui.hyperlink_to(
-                        "Source Code",
-                        "https://github.com/BackBenchDevs/tigervnc",
-                    );
+                    ui.hyperlink_to("Source Code", "https://github.com/BackBenchDevs/tigervnc");
                     ui.add_space(12.0);
                     if ui.button("Close").clicked() {
                         self.show_about = false;
@@ -308,8 +319,7 @@ impl App {
                 }
                 address_book_panel::Action::Edit(id) => {
                     if let Some(entry) = self.address_book.find(&id) {
-                        self.connection_dialog =
-                            Some(ConnectionDialog::new(Some(entry.clone())));
+                        self.connection_dialog = Some(ConnectionDialog::new(Some(entry.clone())));
                     }
                 }
                 address_book_panel::Action::Delete(id) => {
@@ -336,9 +346,14 @@ impl App {
                     if wants_connect {
                         connect_entry_id = Some(id);
                     }
-                } else if let Some(existing) = self.address_book.find_by_host_port(&entry.host, entry.port) {
+                } else if let Some(existing) =
+                    self.address_book.find_by_host_port(&entry.host, entry.port)
+                {
                     let existing_id = existing.id.clone();
-                    info!("Duplicate host:port found, updating existing entry '{}'", existing.name);
+                    info!(
+                        "Duplicate host:port found, updating existing entry '{}'",
+                        existing.name
+                    );
                     entry.id = existing_id.clone();
                     self.address_book.update(entry);
                     if wants_connect {
@@ -367,13 +382,7 @@ impl App {
                 let entry = entry.clone();
                 info!("Connecting to {} ({})", entry.name, entry.display_address());
                 self.address_book.mark_connected(&id);
-                self.start_connection(
-                    &id,
-                    &entry.host,
-                    entry.port,
-                    &entry.username,
-                    &entry.name,
-                );
+                self.start_connection(&id, &entry.host, entry.port, &entry.username, &entry.name);
             }
         }
     }
@@ -387,9 +396,11 @@ impl App {
                     "Showing password dialog for {}:{} user='{}'",
                     req.host, req.port, req.username
                 );
-                if let Some(session) = self.sessions.iter_mut().find(|s| {
-                    s.host == req.host && s.port == req.port && !s.closed
-                }) {
+                if let Some(session) = self
+                    .sessions
+                    .iter_mut()
+                    .find(|s| s.host == req.host && s.port == req.port && !s.closed)
+                {
                     session.password_dialog = Some(password_dialog::PasswordDialog::new(
                         req.host,
                         req.port,

@@ -79,11 +79,10 @@ impl GpuRenderer {
                 tex.set(image, tex_opts);
             }
             None => {
-                self.texture = Some(ui.ctx().load_texture(
-                    "vnc_gpu_framebuffer",
-                    image,
-                    tex_opts,
-                ));
+                self.texture = Some(
+                    ui.ctx()
+                        .load_texture("vnc_gpu_framebuffer", image, tex_opts),
+                );
             }
         }
 
@@ -108,7 +107,11 @@ impl RenderBackend for GpuRenderer {
         self.dirty = true;
     }
 
-    fn render_to_egui(&mut self, ui: &mut Ui, available_size: Vec2) -> Option<(egui::Response, egui::Rect)> {
+    fn render_to_egui(
+        &mut self,
+        ui: &mut Ui,
+        available_size: Vec2,
+    ) -> Option<(egui::Response, egui::Rect)> {
         if self.dirty {
             self.rebuild_texture(ui);
         }
@@ -124,7 +127,9 @@ impl RenderBackend for GpuRenderer {
         }
 
         let ppp = ui.ctx().pixels_per_point();
-        let scale = self.zoom_mode.compute_scale(fb_w, fb_h, available_size, ppp);
+        let scale = self
+            .zoom_mode
+            .compute_scale(fb_w, fb_h, available_size, ppp);
 
         let display_size = Vec2::new(fb_w as f32 * scale, fb_h as f32 * scale);
 

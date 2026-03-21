@@ -164,16 +164,16 @@ impl AddressBook {
     }
 
     pub fn find_by_host_port(&self, host: &str, port: u16) -> Option<&ServerEntry> {
-        self.servers.iter().find(|s| s.host == host && s.port == port)
+        self.servers
+            .iter()
+            .find(|s| s.host == host && s.port == port)
     }
 
     #[allow(dead_code)]
     pub fn servers_by_group(&self) -> HashMap<String, Vec<&ServerEntry>> {
         let mut map: HashMap<String, Vec<&ServerEntry>> = HashMap::new();
         for server in &self.servers {
-            map.entry(server.group.clone())
-                .or_default()
-                .push(server);
+            map.entry(server.group.clone()).or_default().push(server);
         }
         map
     }
@@ -375,7 +375,11 @@ mod tests {
         let e2 = make_entry("s2", "h2", 5900);
         book.add(e1);
         book.add(e2);
-        let count = book.groups.iter().filter(|g| g.as_str() == "Default").count();
+        let count = book
+            .groups
+            .iter()
+            .filter(|g| g.as_str() == "Default")
+            .count();
         assert_eq!(count, 1);
     }
 

@@ -46,11 +46,7 @@ pub fn store_password(
     Ok(())
 }
 
-pub fn get_password(
-    host: &str,
-    port: u16,
-    username: &str,
-) -> Result<String, CredentialError> {
+pub fn get_password(host: &str, port: u16, username: &str) -> Result<String, CredentialError> {
     let key = entry_key(host, port, username);
     let entry = keyring::Entry::new(SERVICE_NAME, &key)?;
     match entry.get_password() {
@@ -61,11 +57,7 @@ pub fn get_password(
 }
 
 #[allow(dead_code)]
-pub fn delete_password(
-    host: &str,
-    port: u16,
-    username: &str,
-) -> Result<(), CredentialError> {
+pub fn delete_password(host: &str, port: u16, username: &str) -> Result<(), CredentialError> {
     let key = entry_key(host, port, username);
     let entry = keyring::Entry::new(SERVICE_NAME, &key)?;
     entry.delete_credential()?;
@@ -83,10 +75,7 @@ mod tests {
 
     #[test]
     fn test_entry_key_with_user() {
-        assert_eq!(
-            entry_key("10.0.0.1", 5901, "admin"),
-            "admin@10.0.0.1:5901"
-        );
+        assert_eq!(entry_key("10.0.0.1", 5901, "admin"), "admin@10.0.0.1:5901");
     }
 
     #[test]

@@ -127,19 +127,21 @@ pub enum ZoomMode {
 }
 
 impl ZoomMode {
-    pub fn compute_scale(&self, fb_w: u32, fb_h: u32, available: egui::Vec2, pixels_per_point: f32) -> f32 {
+    pub fn compute_scale(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        available: egui::Vec2,
+        pixels_per_point: f32,
+    ) -> f32 {
         match self {
             ZoomMode::Fit => {
                 let scale_x = available.x / fb_w as f32;
                 let scale_y = available.y / fb_h as f32;
                 scale_x.min(scale_y)
             }
-            ZoomMode::OneToOne => {
-                1.0 / pixels_per_point
-            }
-            ZoomMode::Fixed(zoom) => {
-                *zoom
-            }
+            ZoomMode::OneToOne => 1.0 / pixels_per_point,
+            ZoomMode::Fixed(zoom) => *zoom,
         }
     }
 
@@ -409,8 +411,20 @@ mod tests {
     fn test_screen_layout_multi_monitor() {
         let layout = ScreenLayout {
             screens: vec![
-                Screen { id: 0, x: 0, y: 0, width: 1920, height: 1080 },
-                Screen { id: 1, x: 1920, y: 0, width: 1920, height: 1080 },
+                Screen {
+                    id: 0,
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                Screen {
+                    id: 1,
+                    x: 1920,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
             ],
         };
         assert_eq!(layout.screen_count(), 2);
@@ -422,8 +436,20 @@ mod tests {
     fn test_screen_layout_bounding_box_offset() {
         let layout = ScreenLayout {
             screens: vec![
-                Screen { id: 0, x: 0, y: 0, width: 1920, height: 1080 },
-                Screen { id: 1, x: 1920, y: 200, width: 1280, height: 720 },
+                Screen {
+                    id: 0,
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                Screen {
+                    id: 1,
+                    x: 1920,
+                    y: 200,
+                    width: 1280,
+                    height: 720,
+                },
             ],
         };
         let (x, y, w, h) = layout.bounding_box();

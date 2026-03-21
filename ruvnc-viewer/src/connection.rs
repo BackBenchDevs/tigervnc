@@ -71,7 +71,13 @@ impl ConnectionManager {
     pub fn connect(&mut self, host: &str, port: u16, username: &str) {
         info!(
             "Initiating VNC connection to {}:{} (user='{}')",
-            host, port, if username.is_empty() { "<none>" } else { username }
+            host,
+            port,
+            if username.is_empty() {
+                "<none>"
+            } else {
+                username
+            }
         );
 
         crate::bridge::set_connection_context(host, port, username);
@@ -90,14 +96,16 @@ impl ConnectionManager {
         thread::spawn(move || {
             debug!("Connection thread started for {}:{}", host, port);
             let mut conn = ffi::vnc_create();
-            debug!("VncConnection object created, attempting TCP connect to {}:{}", host, port);
+            debug!(
+                "VncConnection object created, attempting TCP connect to {}:{}",
+                host, port
+            );
 
             if !ffi::vnc_connect(conn.pin_mut(), &host, port) {
                 error!("VNC connection FAILED to {}:{} -- check that a VNC server is running at that address", host, port);
                 let mut guard = inner.lock().unwrap();
-                guard.state = ConnectionState::Error(
-                    format!("Connection failed to {}:{}", host, port),
-                );
+                guard.state =
+                    ConnectionState::Error(format!("Connection failed to {}:{}", host, port));
                 return;
             }
 
@@ -199,13 +207,19 @@ impl ConnectionManager {
 
                 let fd = ffi::vnc_get_socket_fd(&conn);
                 if fd < 0 {
-                    warn!("Socket fd is invalid (<0) for {}:{}, closing connection", host, port);
+                    warn!(
+                        "Socket fd is invalid (<0) for {}:{}, closing connection",
+                        host, port
+                    );
                     break;
                 }
 
                 if !ffi::vnc_process_messages(conn.pin_mut()) {
                     if !ffi::vnc_is_connected(&conn) {
-                        warn!("Connection to {}:{} lost (server closed or network error)", host, port);
+                        warn!(
+                            "Connection to {}:{} lost (server closed or network error)",
+                            host, port
+                        );
                         break;
                     }
                     thread::sleep(std::time::Duration::from_millis(1));
@@ -221,8 +235,7 @@ impl ConnectionManager {
 
                     // Copy pixel data on the connection thread where the C++ pointer is valid
                     let pixel_copy = unsafe {
-                        std::slice::from_raw_parts(fb_info.data_ptr as *const u8, byte_len)
-                            .to_vec()
+                        std::slice::from_raw_parts(fb_info.data_ptr as *const u8, byte_len).to_vec()
                     };
 
                     let mut guard = inner.lock().unwrap();
@@ -263,7 +276,9 @@ impl ConnectionManager {
 
     pub fn send_key_press(&self, key_code: u32, key_sym: u32) {
         let mut guard = self.inner.lock().unwrap();
-        guard.input_queue.push(InputCommand::KeyPress(key_code, key_sym));
+        guard
+            .input_queue
+            .push(InputCommand::KeyPress(key_code, key_sym));
     }
 
     pub fn send_key_release(&self, key_code: u32) {
@@ -273,7 +288,9 @@ impl ConnectionManager {
 
     pub fn send_pointer(&self, x: i32, y: i32, button_mask: u8) {
         let mut guard = self.inner.lock().unwrap();
-        guard.input_queue.push(InputCommand::Pointer(x, y, button_mask));
+        guard
+            .input_queue
+            .push(InputCommand::Pointer(x, y, button_mask));
     }
 
     pub fn send_clipboard(&self, text: &str) {
@@ -362,7 +379,10 @@ mod tests {
         mgr.send_key_press(0x41, 0x41);
         let guard = mgr.inner.lock().unwrap();
         assert_eq!(guard.input_queue.len(), 1);
-        assert!(matches!(guard.input_queue[0], InputCommand::KeyPress(0x41, 0x41)));
+        assert!(matches!(
+            guard.input_queue[0],
+            InputCommand::KeyPress(0x41, 0x41)
+        ));
     }
 
     #[test]
@@ -371,7 +391,10 @@ mod tests {
         mgr.send_key_release(0x41);
         let guard = mgr.inner.lock().unwrap();
         assert_eq!(guard.input_queue.len(), 1);
-        assert!(matches!(guard.input_queue[0], InputCommand::KeyRelease(0x41)));
+        assert!(matches!(
+            guard.input_queue[0],
+            InputCommand::KeyRelease(0x41)
+        ));
     }
 
     #[test]
@@ -380,7 +403,10 @@ mod tests {
         mgr.send_pointer(100, 200, 1);
         let guard = mgr.inner.lock().unwrap();
         assert_eq!(guard.input_queue.len(), 1);
-        assert!(matches!(guard.input_queue[0], InputCommand::Pointer(100, 200, 1)));
+        assert!(matches!(
+            guard.input_queue[0],
+            InputCommand::Pointer(100, 200, 1)
+        ));
     }
 
     #[test]
@@ -437,9 +463,15 @@ mod tests {
         assert!(matches!(guard.input_queue[1], InputCommand::KeyRelease(..)));
         assert!(matches!(guard.input_queue[2], InputCommand::Pointer(..)));
         assert!(matches!(guard.input_queue[3], InputCommand::Clipboard(..)));
-        assert!(matches!(guard.input_queue[4], InputCommand::SetEncoding(..)));
+        assert!(matches!(
+            guard.input_queue[4],
+            InputCommand::SetEncoding(..)
+        ));
         assert!(matches!(guard.input_queue[5], InputCommand::SetQuality(..)));
-        assert!(matches!(guard.input_queue[6], InputCommand::SetCompress(..)));
+        assert!(matches!(
+            guard.input_queue[6],
+            InputCommand::SetCompress(..)
+        ));
     }
 
     #[test]

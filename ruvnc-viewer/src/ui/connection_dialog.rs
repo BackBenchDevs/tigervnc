@@ -100,8 +100,7 @@ impl ConnectionDialog {
                         ui.label("Password:");
                         ui.horizontal(|ui| {
                             ui.add(
-                                egui::TextEdit::singleline(&mut self.password_input)
-                                    .password(true),
+                                egui::TextEdit::singleline(&mut self.password_input).password(true),
                             );
                             ui.checkbox(&mut self.save_password, "Save");
                         });
