@@ -13,10 +13,18 @@
 
 use std::path::{Path, PathBuf};
 
+struct BuildTarget {
+    is_windows: bool,
+    is_unix: bool,
+    is_macos: bool,
+}
+
 struct LibFlags {
     include_paths: Vec<PathBuf>,
+    link_paths: Vec<PathBuf>,
     has_gnutls: bool,
     has_nettle: bool,
+    target: BuildTarget,
 }
 
 fn generate_config_h(out_dir: &Path, cmake_build_dir: &Path) {
@@ -48,36 +56,75 @@ fn generate_config_h(out_dir: &Path, cmake_build_dir: &Path) {
     }
 }
 
-fn probe_lib_includes(name: &str) -> Vec<PathBuf> {
-    pkg_config::probe_library(name)
-        .map(|lib| lib.include_paths)
-        .unwrap_or_default()
+struct PkgInfo {
+    include_paths: Vec<PathBuf>,
+    link_paths: Vec<PathBuf>,
+}
+
+fn probe_lib(name: &str) -> PkgInfo {
+    let mut cfg = pkg_config::Config::new();
+    cfg.cargo_metadata(false);
+    match cfg.probe(name) {
+        Ok(lib) => PkgInfo {
+            include_paths: lib.include_paths,
+            link_paths: lib.link_paths,
+        },
+        Err(_) => PkgInfo {
+            include_paths: Vec::new(),
+            link_paths: Vec::new(),
+        },
+    }
 }
 
 fn main() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_family = std::env::var("CARGO_CFG_TARGET_FAMILY").unwrap_or_default();
+    let target = BuildTarget {
+        is_windows: target_os == "windows",
+        is_unix: target_family == "unix",
+        is_macos: target_os == "macos",
+    };
+
     let tigervnc_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
     let common_dir = tigervnc_root.join("common");
     let bridge_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bridge");
 
-    let has_gnutls = pkg_config::probe_library("gnutls").is_ok();
-    let has_nettle = pkg_config::probe_library("nettle").is_ok();
+    let has_gnutls = pkg_config::Config::new()
+        .cargo_metadata(false)
+        .probe("gnutls")
+        .is_ok();
+    let has_nettle = pkg_config::Config::new()
+        .cargo_metadata(false)
+        .probe("nettle")
+        .is_ok();
 
     let mut include_paths = Vec::new();
-    include_paths.extend(probe_lib_includes("zlib"));
-    include_paths.extend(probe_lib_includes("pixman-1"));
-    include_paths.extend(probe_lib_includes("libjpeg"));
+    let mut link_paths = Vec::new();
+
+    for name in &["zlib", "pixman-1", "libjpeg"] {
+        let info = probe_lib(name);
+        include_paths.extend(info.include_paths);
+        link_paths.extend(info.link_paths);
+    }
     if has_gnutls {
-        include_paths.extend(probe_lib_includes("gnutls"));
+        let info = probe_lib("gnutls");
+        include_paths.extend(info.include_paths);
+        link_paths.extend(info.link_paths);
     }
     if has_nettle {
-        include_paths.extend(probe_lib_includes("nettle"));
-        include_paths.extend(probe_lib_includes("gmp"));
+        for name in &["nettle", "gmp"] {
+            let info = probe_lib(name);
+            include_paths.extend(info.include_paths);
+            link_paths.extend(info.link_paths);
+        }
     }
 
     let flags = LibFlags {
         include_paths,
+        link_paths,
         has_gnutls,
         has_nettle,
+        target,
     };
 
     build_bridge(&common_dir, &bridge_dir, &flags);
@@ -96,7 +143,7 @@ fn apply_common_flags(build: &mut cc::Build, common_dir: &Path, out_dir: &Path, 
         .define("BUILD_TIMESTAMP", "\"ruvnc-viewer\"")
         .define("HAVE_CONFIG_H", None);
 
-    if cfg!(target_os = "windows") {
+    if flags.target.is_windows {
         build.define("WIN32", None);
     }
     if flags.has_gnutls {
@@ -124,7 +171,6 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
     let mut build = cc::Build::new();
     apply_common_flags(&mut build, common_dir, &out_dir, flags);
 
-    // core sources
     let core_sources = [
         "Configuration.cxx",
         "Exception.cxx",
@@ -141,11 +187,10 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
     for src in &core_sources {
         build.file(core_dir.join(src));
     }
-    if cfg!(unix) {
+    if flags.target.is_unix {
         build.file(core_dir.join("Logger_syslog.cxx"));
     }
 
-    // rdr sources
     let rdr_sources = [
         "AESInStream.cxx",
         "AESOutStream.cxx",
@@ -168,14 +213,12 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
         build.file(rdr_dir.join(src));
     }
 
-    // network sources
     build.file(network_dir.join("Socket.cxx"));
     build.file(network_dir.join("TcpSocket.cxx"));
-    if cfg!(unix) {
+    if flags.target.is_unix {
         build.file(network_dir.join("UnixSocket.cxx"));
     }
 
-    // rfb sources
     let rfb_sources = [
         "AccessRights.cxx",
         "Blacklist.cxx",
@@ -233,14 +276,15 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
         "encodings.cxx",
         "obfuscate.cxx",
     ];
+
+    let mut c_build = cc::Build::new();
+    c_build.include(common_dir).warnings(false);
+    let mut has_c_files = false;
+
     for src in &rfb_sources {
         if src.ends_with(".c") {
-            let mut c_build = cc::Build::new();
-            c_build
-                .include(common_dir)
-                .warnings(false)
-                .file(rfb_dir.join(src));
-            c_build.compile(&format!("rfb_{}", src.replace('.', "_")));
+            c_build.file(rfb_dir.join(src));
+            has_c_files = true;
         } else {
             build.file(rfb_dir.join(src));
         }
@@ -256,16 +300,33 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
         build.file(rfb_dir.join("CSecurityRSAAES.cxx"));
         build.file(rfb_dir.join("SSecurityRSAAES.cxx"));
     }
-    if cfg!(unix) && !cfg!(target_os = "macos") {
+    if flags.target.is_unix && !flags.target.is_macos {
         build.file(rfb_dir.join("UnixPasswordValidator.cxx"));
     }
 
-    build.compile("vnccore");
+    for path in &flags.link_paths {
+        println!("cargo:rustc-link-search=native={}", path.display());
+    }
 
+    // On Windows (MinGW), the GNU linker is single-pass and sensitive to
+    // library ordering.  Wrap all our static libs and their dependencies in a
+    // linker group so cross-references resolve regardless of emission order.
+    if flags.target.is_windows {
+        println!("cargo:rustc-link-arg=-Wl,--start-group");
+    }
+
+    build.compile("vnccore");
     println!("cargo:rustc-link-lib=static=vnccore");
+
+    if has_c_files {
+        c_build.compile("vnccore_c");
+        println!("cargo:rustc-link-lib=static=vnccore_c");
+    }
+
+    println!("cargo:rustc-link-lib=pixman-1");
     println!("cargo:rustc-link-lib=z");
     println!("cargo:rustc-link-lib=jpeg");
-    if cfg!(unix) {
+    if flags.target.is_unix {
         println!("cargo:rustc-link-lib=pthread");
     }
     if flags.has_gnutls {
@@ -276,17 +337,21 @@ fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
         println!("cargo:rustc-link-lib=hogweed");
         println!("cargo:rustc-link-lib=gmp");
     }
-    if cfg!(unix) && !cfg!(target_os = "macos") {
+    if flags.target.is_unix && !flags.target.is_macos {
         println!("cargo:rustc-link-lib=pam");
     }
-    if cfg!(target_os = "windows") {
+    if flags.target.is_windows {
         println!("cargo:rustc-link-lib=ws2_32");
         println!("cargo:rustc-link-lib=crypt32");
         println!("cargo:rustc-link-lib=secur32");
     }
-    if cfg!(target_os = "macos") {
+    if flags.target.is_macos {
         println!("cargo:rustc-link-lib=framework=Security");
         println!("cargo:rustc-link-lib=framework=CoreFoundation");
+    }
+
+    if flags.target.is_windows {
+        println!("cargo:rustc-link-arg=-Wl,--end-group");
     }
 }
 
