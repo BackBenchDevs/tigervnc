@@ -13,6 +13,12 @@
 
 use std::path::{Path, PathBuf};
 
+struct LibFlags {
+    include_paths: Vec<PathBuf>,
+    has_gnutls: bool,
+    has_nettle: bool,
+}
+
 fn generate_config_h(out_dir: &Path, cmake_build_dir: &Path) {
     let config_dst = out_dir.join("config.h");
     let cmake_config = cmake_build_dir.join("config.h");
@@ -42,16 +48,69 @@ fn generate_config_h(out_dir: &Path, cmake_build_dir: &Path) {
     }
 }
 
+fn probe_lib_includes(name: &str) -> Vec<PathBuf> {
+    pkg_config::probe_library(name)
+        .map(|lib| lib.include_paths)
+        .unwrap_or_default()
+}
+
 fn main() {
     let tigervnc_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
     let common_dir = tigervnc_root.join("common");
     let bridge_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bridge");
 
-    build_vnc_core(&common_dir);
-    build_bridge(&common_dir, &bridge_dir);
+    let has_gnutls = pkg_config::probe_library("gnutls").is_ok();
+    let has_nettle = pkg_config::probe_library("nettle").is_ok();
+
+    let mut include_paths = Vec::new();
+    include_paths.extend(probe_lib_includes("zlib"));
+    include_paths.extend(probe_lib_includes("pixman-1"));
+    include_paths.extend(probe_lib_includes("libjpeg"));
+    if has_gnutls {
+        include_paths.extend(probe_lib_includes("gnutls"));
+    }
+    if has_nettle {
+        include_paths.extend(probe_lib_includes("nettle"));
+        include_paths.extend(probe_lib_includes("gmp"));
+    }
+
+    let flags = LibFlags {
+        include_paths,
+        has_gnutls,
+        has_nettle,
+    };
+
+    build_vnc_core(&common_dir, &flags);
+    build_bridge(&common_dir, &bridge_dir, &flags);
 }
 
-fn build_vnc_core(common_dir: &Path) {
+fn apply_common_flags(build: &mut cc::Build, common_dir: &Path, out_dir: &Path, flags: &LibFlags) {
+    build
+        .cpp(true)
+        .std("c++14")
+        .include(common_dir)
+        .include(out_dir)
+        .warnings(false)
+        .define("PACKAGE_NAME", "\"tigervnc\"")
+        .define("PACKAGE_VERSION", "\"1.16.80\"")
+        .define("BUILD_TIMESTAMP", "\"ruvnc-viewer\"")
+        .define("HAVE_CONFIG_H", None);
+
+    if cfg!(target_os = "windows") {
+        build.define("WIN32", None);
+    }
+    if flags.has_gnutls {
+        build.define("HAVE_GNUTLS", None);
+    }
+    if flags.has_nettle {
+        build.define("HAVE_NETTLE", None);
+    }
+    for inc in &flags.include_paths {
+        build.include(inc);
+    }
+}
+
+fn build_vnc_core(common_dir: &Path, flags: &LibFlags) {
     let core_dir = common_dir.join("core");
     let rdr_dir = common_dir.join("rdr");
     let network_dir = common_dir.join("network");
@@ -63,61 +122,7 @@ fn build_vnc_core(common_dir: &Path) {
     generate_config_h(&out_dir, &cmake_build_dir);
 
     let mut build = cc::Build::new();
-    build
-        .cpp(true)
-        .std("c++14")
-        .include(common_dir)
-        .include(&out_dir)
-        .warnings(false)
-        .define("PACKAGE_NAME", "\"tigervnc\"")
-        .define("PACKAGE_VERSION", "\"1.16.80\"")
-        .define("BUILD_TIMESTAMP", "\"ruvnc-viewer\"")
-        .define("HAVE_CONFIG_H", None);
-
-    if cfg!(target_os = "windows") {
-        build.define("WIN32", None);
-    }
-
-    if let Ok(lib) = pkg_config::probe_library("zlib") {
-        for inc in &lib.include_paths {
-            build.include(inc);
-        }
-    }
-    if let Ok(lib) = pkg_config::probe_library("pixman-1") {
-        for inc in &lib.include_paths {
-            build.include(inc);
-        }
-    }
-    if let Ok(lib) = pkg_config::probe_library("libjpeg") {
-        for inc in &lib.include_paths {
-            build.include(inc);
-        }
-    }
-
-    let has_gnutls = pkg_config::probe_library("gnutls").is_ok();
-    if has_gnutls {
-        build.define("HAVE_GNUTLS", None);
-        if let Ok(lib) = pkg_config::probe_library("gnutls") {
-            for inc in &lib.include_paths {
-                build.include(inc);
-            }
-        }
-    }
-
-    let has_nettle = pkg_config::probe_library("nettle").is_ok();
-    if has_nettle {
-        build.define("HAVE_NETTLE", None);
-        if let Ok(lib) = pkg_config::probe_library("nettle") {
-            for inc in &lib.include_paths {
-                build.include(inc);
-            }
-        }
-        if let Ok(lib) = pkg_config::probe_library("gmp") {
-            for inc in &lib.include_paths {
-                build.include(inc);
-            }
-        }
-    }
+    apply_common_flags(&mut build, common_dir, &out_dir, flags);
 
     // core sources
     let core_sources = [
@@ -241,11 +246,11 @@ fn build_vnc_core(common_dir: &Path) {
         }
     }
 
-    if has_gnutls {
+    if flags.has_gnutls {
         build.file(rfb_dir.join("CSecurityTLS.cxx"));
         build.file(rfb_dir.join("SSecurityTLS.cxx"));
     }
-    if has_nettle {
+    if flags.has_nettle {
         build.file(rfb_dir.join("CSecurityDH.cxx"));
         build.file(rfb_dir.join("CSecurityMSLogonII.cxx"));
         build.file(rfb_dir.join("CSecurityRSAAES.cxx"));
@@ -263,10 +268,10 @@ fn build_vnc_core(common_dir: &Path) {
     if cfg!(unix) {
         println!("cargo:rustc-link-lib=pthread");
     }
-    if has_gnutls {
+    if flags.has_gnutls {
         println!("cargo:rustc-link-lib=gnutls");
     }
-    if has_nettle {
+    if flags.has_nettle {
         println!("cargo:rustc-link-lib=nettle");
         println!("cargo:rustc-link-lib=hogweed");
         println!("cargo:rustc-link-lib=gmp");
@@ -285,21 +290,15 @@ fn build_vnc_core(common_dir: &Path) {
     }
 }
 
-fn build_bridge(common_dir: &Path, bridge_dir: &Path) {
+fn build_bridge(common_dir: &Path, bridge_dir: &Path, flags: &LibFlags) {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let sources = vec![bridge_dir.join("src").join("headless_conn.cc")];
 
-    cxx_build::bridge("src/bridge.rs")
+    let mut builder = cxx_build::bridge("src/bridge.rs");
+    apply_common_flags(&mut builder, common_dir, &out_dir, flags);
+    builder
         .files(sources)
-        .include(common_dir)
-        .include(&out_dir)
         .include(bridge_dir.join("include"))
-        .std("c++14")
-        .warnings(false)
-        .define("HAVE_CONFIG_H", None)
-        .define("PACKAGE_NAME", "\"tigervnc\"")
-        .define("PACKAGE_VERSION", "\"1.16.80\"")
-        .define("BUILD_TIMESTAMP", "\"ruvnc-viewer\"")
         .compile("vnc_bridge");
 
     println!("cargo:rerun-if-changed=src/bridge.rs");
