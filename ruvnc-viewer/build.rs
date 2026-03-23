@@ -80,8 +80,8 @@ fn main() {
         has_nettle,
     };
 
-    build_vnc_core(&common_dir, &flags);
     build_bridge(&common_dir, &bridge_dir, &flags);
+    build_vnc_core(&common_dir, &flags);
 }
 
 fn apply_common_flags(build: &mut cc::Build, common_dir: &Path, out_dir: &Path, flags: &LibFlags) {
