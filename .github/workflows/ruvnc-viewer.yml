@@ -34,12 +34,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libpixman-1-dev zlib1g-dev libpam0g-dev
+            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
+          shared-key: ruvnc-linux
           cache-on-failure: "true"
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Check formatting
         working-directory: ruvnc-viewer
@@ -64,12 +66,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libpixman-1-dev zlib1g-dev libpam0g-dev
+            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
+          shared-key: ruvnc-linux
           cache-on-failure: "true"
+          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Run tests
         working-directory: ruvnc-viewer
@@ -91,12 +95,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libpixman-1-dev zlib1g-dev libpam0g-dev \
+            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev \
             libgtk-3-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
+          shared-key: ruvnc-linux
           cache-on-failure: "true"
 
       - name: Build
@@ -107,36 +112,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ruvnc-viewer-linux-x86_64
-          path: ruvnc-viewer/target/release/ruvnc-viewer
-
-  build-macos-intel:
-    name: macOS (x86_64)
-    needs: [test]
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: macos-13
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: brew install jpeg-turbo gnutls nettle pixman zlib pkg-config
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ruvnc-viewer
-          cache-on-failure: "true"
-
-      - name: Build
-        working-directory: ruvnc-viewer
-        run: cargo build --release
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ruvnc-viewer-macos-x86_64
           path: ruvnc-viewer/target/release/ruvnc-viewer
 
   build-macos-arm64:
@@ -152,11 +127,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: brew install jpeg-turbo gnutls nettle pixman zlib pkg-config
+        run: brew install jpeg-turbo gnutls nettle gmp pixman zlib pkg-config
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
+          shared-key: ruvnc-macos-arm64
           cache-on-failure: "true"
 
       - name: Build
@@ -193,6 +169,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-gnutls
             mingw-w64-x86_64-nettle
+            mingw-w64-x86_64-gmp
             mingw-w64-x86_64-pixman
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-pkg-config
@@ -221,7 +198,7 @@ jobs:
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc')
-    needs: [build-linux, build-macos-intel, build-macos-arm64, build-windows]
+    needs: [build-linux, build-macos-arm64, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
