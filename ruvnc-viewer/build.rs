@@ -74,6 +74,10 @@ fn build_vnc_core(common_dir: &Path) {
         .define("BUILD_TIMESTAMP", "\"ruvnc-viewer\"")
         .define("HAVE_CONFIG_H", None);
 
+    if cfg!(target_os = "windows") {
+        build.define("WIN32", None);
+    }
+
     if let Ok(lib) = pkg_config::probe_library("zlib") {
         for inc in &lib.include_paths {
             build.include(inc);
@@ -104,6 +108,11 @@ fn build_vnc_core(common_dir: &Path) {
     if has_nettle {
         build.define("HAVE_NETTLE", None);
         if let Ok(lib) = pkg_config::probe_library("nettle") {
+            for inc in &lib.include_paths {
+                build.include(inc);
+            }
+        }
+        if let Ok(lib) = pkg_config::probe_library("gmp") {
             for inc in &lib.include_paths {
                 build.include(inc);
             }
