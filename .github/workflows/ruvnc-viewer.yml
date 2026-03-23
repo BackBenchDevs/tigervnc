@@ -2,7 +2,7 @@ name: RuVNC Viewer CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, build_test]
     tags: ['v*']
     paths:
       - 'ruvnc-viewer/**'
