@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Name=RuVNC Viewer
+GenericName=VNC Remote Desktop Viewer
+Comment=Modern Rust-based VNC client for connecting to remote desktops
+Exec=ruvnc-viewer %u
+Icon=ruvnc-viewer
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=ruvnc-viewer
+Categories=Network;RemoteAccess;GTK;
+MimeType=x-scheme-handler/vnc;
+Keywords=vnc;remote;desktop;connection;tigervnc;
