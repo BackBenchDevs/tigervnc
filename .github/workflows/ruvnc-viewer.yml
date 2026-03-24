@@ -234,14 +234,14 @@ jobs:
       - name: Cache Homebrew downloads
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Caches/Homebrew
-            /opt/homebrew/Cellar
+          path: ~/Library/Caches/Homebrew
           key: macos-brew-${{ hashFiles('.github/workflows/ruvnc-viewer.yml') }}
           restore-keys: macos-brew-
 
       - name: Install dependencies
-        run: brew install jpeg-turbo gnutls nettle gmp pixman zlib pkg-config create-dmg librsvg
+        run: |
+          brew install jpeg-turbo gnutls nettle gmp pixman zlib pkg-config create-dmg librsvg
+          which rsvg-convert
 
       - uses: Swatinem/rust-cache@v2
         with:
