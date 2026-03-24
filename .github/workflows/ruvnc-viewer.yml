@@ -282,25 +282,27 @@ jobs:
           APP="RuVNC Viewer.app"
           cd "$APP/Contents"
 
-          otool -L MacOS/ruvnc-viewer | awk '/\/opt\/homebrew|\/usr\/local/{print $1}' | while read lib; do
+          while IFS= read -r lib; do
             cp "$lib" Frameworks/
             install_name_tool -change "$lib" "@executable_path/../Frameworks/$(basename "$lib")" MacOS/ruvnc-viewer
-          done
+          done < <(otool -L MacOS/ruvnc-viewer | awk '/\/opt\/homebrew|\/usr\/local/{print $1}')
 
           changed=1
           while [ "$changed" -eq 1 ]; do
             changed=0
             for dylib in Frameworks/*.dylib; do
-              otool -L "$dylib" | awk '/\/opt\/homebrew|\/usr\/local/{print $1}' | while read lib; do
+              while IFS= read -r lib; do
                 base=$(basename "$lib")
                 if [ ! -f "Frameworks/$base" ]; then
                   cp "$lib" "Frameworks/$base"
                   changed=1
                 fi
                 install_name_tool -change "$lib" "@executable_path/../Frameworks/$base" "$dylib" 2>/dev/null || true
-              done
+              done < <(otool -L "$dylib" | awk '/\/opt\/homebrew|\/usr\/local/{print $1}')
             done
           done
+
+          chmod u+w Frameworks/*.dylib
 
           for dylib in Frameworks/*.dylib; do
             install_name_tool -id "@executable_path/../Frameworks/$(basename "$dylib")" "$dylib"
@@ -368,6 +370,7 @@ jobs:
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-nsis
+            mingw-w64-x86_64-librsvg
             mingw-w64-x86_64-imagemagick
 
       - name: Build
@@ -384,7 +387,12 @@ jobs:
             | awk '{print $3}' \
             | xargs -I{} cp {} ruvnc-viewer/dist/
 
-          magick -background none -resize 256x256 media/icons/tigervnc.svg ruvnc-viewer/dist/ruvnc-viewer.ico
+          for size in 16 32 48 64 128 256; do
+            rsvg-convert -w $size -h $size media/icons/tigervnc.svg -o ruvnc-viewer/dist/icon-${size}.png
+          done
+          magick ruvnc-viewer/dist/icon-16.png ruvnc-viewer/dist/icon-32.png ruvnc-viewer/dist/icon-48.png \
+            ruvnc-viewer/dist/icon-64.png ruvnc-viewer/dist/icon-128.png ruvnc-viewer/dist/icon-256.png \
+            ruvnc-viewer/dist/ruvnc-viewer.ico
 
       - name: Build NSIS installer
         working-directory: ruvnc-viewer
