@@ -13,14 +13,81 @@ on:
     paths:
       - 'ruvnc-viewer/**'
       - 'common/**'
+  issue_comment:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ── Detect which source areas actually changed ─────────────────────
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    if: github.event_name != 'issue_comment'
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      common: ${{ steps.filter.outputs.common }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+      src_changed: ${{ steps.changed.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'ruvnc-viewer/**'
+            common:
+              - 'common/**'
+            workflow:
+              - '.github/workflows/ruvnc-viewer.yml'
+
+      - name: Aggregate change flags
+        id: changed
+        run: |
+          if [[ "${{ steps.filter.outputs.rust }}" == "true" ]] || \
+             [[ "${{ steps.filter.outputs.common }}" == "true" ]] || \
+             [[ "${{ steps.filter.outputs.workflow }}" == "true" ]]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Fast-path gate: build_test push or "build" comment ────────────
+  gate:
+    name: Build Gate
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/build_test') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.actor == 'amw007' &&
+       contains(github.event.comment.body, 'build'))
+    outputs:
+      fast: 'true'
+      pr_ref: ${{ steps.pr.outputs.ref }}
+    steps:
+      - name: Resolve PR head ref (comment trigger)
+        id: pr
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM=${{ github.event.issue.number }}
+          REF=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.head.ref')
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+  # ── Normal path: lint -> test (skipped on fast path or no changes) ─
   lint:
     name: Lint & Format
+    needs: [detect-changes]
     runs-on: ubuntu-latest
+    if: >-
+      needs.detect-changes.outputs.src_changed == 'true' &&
+      github.event_name != 'issue_comment' &&
+      !(github.event_name == 'push' && github.ref == 'refs/heads/build_test')
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -31,17 +98,18 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install C/C++ dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: >-
+            libjpeg-turbo8-dev libgnutls28-dev nettle-dev libgmp-dev
+            libpixman-1-dev zlib1g-dev libpam0g-dev
+          version: 1.0
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
-          shared-key: ruvnc-linux
+          shared-key: ruvnc-linux-debug
           cache-on-failure: "true"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Check formatting
         working-directory: ruvnc-viewer
@@ -53,8 +121,9 @@ jobs:
 
   test:
     name: Test
-    needs: [lint]
+    needs: [lint, detect-changes]
     runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.src_changed == 'true'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -63,104 +132,232 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install C/C++ dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: >-
+            libjpeg-turbo8-dev libgnutls28-dev nettle-dev libgmp-dev
+            libpixman-1-dev zlib1g-dev libpam0g-dev
+          version: 1.0
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
-          shared-key: ruvnc-linux
+          shared-key: ruvnc-linux-debug
           cache-on-failure: "true"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Run tests
         working-directory: ruvnc-viewer
         run: cargo test
 
+  # ── Linux: AppImage ────────────────────────────────────────────────
   build-linux:
     name: Linux (x86_64)
-    needs: [test]
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [gate, test, detect-changes]
+    if: |
+      always() &&
+      (needs.gate.result == 'success' ||
+       (needs.test.result == 'success' &&
+        needs.detect-changes.outputs.src_changed == 'true' &&
+        startsWith(github.ref, 'refs/tags/')))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libjpeg-turbo8-dev libgnutls28-dev \
-            nettle-dev libgmp-dev libpixman-1-dev zlib1g-dev libpam0g-dev \
-            libgtk-3-dev libxcb-shape0-dev libxcb-xfixes0-dev
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ruvnc-viewer
-          shared-key: ruvnc-linux
-          cache-on-failure: "true"
-
-      - name: Build
-        working-directory: ruvnc-viewer
-        run: cargo build --release
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ruvnc-viewer-linux-x86_64
-          path: ruvnc-viewer/target/release/ruvnc-viewer
-
-  build-macos-arm64:
-    name: macOS (ARM64)
-    needs: [test]
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: macos-14
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.pr_ref || github.ref }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: brew install jpeg-turbo gnutls nettle gmp pixman zlib pkg-config
+      - name: Install C/C++ dependencies
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: >-
+            libjpeg-turbo8-dev libgnutls28-dev nettle-dev libgmp-dev
+            libpixman-1-dev zlib1g-dev libpam0g-dev
+            libgtk-3-dev libxcb-shape0-dev libxcb-xfixes0-dev
+            librsvg2-bin
+          version: 1.0
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ruvnc-viewer
-          shared-key: ruvnc-macos-arm64
+          shared-key: ruvnc-linux-release
           cache-on-failure: "true"
 
       - name: Build
         working-directory: ruvnc-viewer
         run: cargo build --release
 
-      - name: Upload binary
+      - name: Generate icon from SVG
+        run: rsvg-convert -w 256 -h 256 media/icons/tigervnc.svg -o ruvnc-viewer.png
+
+      - name: Create AppImage
+        run: |
+          wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --executable ruvnc-viewer/target/release/ruvnc-viewer \
+            --desktop-file ruvnc-viewer/ruvnc-viewer.desktop \
+            --icon-file ruvnc-viewer.png \
+            --output appimage
+          mv RuVNC_Viewer*.AppImage ruvnc-viewer-linux-x86_64.AppImage || \
+          mv ruvnc*.AppImage ruvnc-viewer-linux-x86_64.AppImage || true
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruvnc-viewer-linux-x86_64
+          path: ruvnc-viewer-linux-x86_64.AppImage
+
+  # ── macOS: .app bundle in .dmg ─────────────────────────────────────
+  build-macos-arm64:
+    name: macOS (ARM64)
+    needs: [gate, test, detect-changes]
+    if: |
+      always() &&
+      (needs.gate.result == 'success' ||
+       (needs.test.result == 'success' &&
+        needs.detect-changes.outputs.src_changed == 'true' &&
+        startsWith(github.ref, 'refs/tags/')))
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.pr_ref || github.ref }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: macos-brew-${{ hashFiles('.github/workflows/ruvnc-viewer.yml') }}
+          restore-keys: macos-brew-
+
+      - name: Install dependencies
+        run: |
+          brew install jpeg-turbo gnutls nettle gmp pixman zlib pkg-config create-dmg librsvg
+          which rsvg-convert
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ruvnc-viewer
+          shared-key: ruvnc-macos-arm64-release
+          cache-on-failure: "true"
+
+      - name: Build
+        working-directory: ruvnc-viewer
+        run: cargo build --release
+
+      - name: Create .app bundle
+        run: |
+          APP="RuVNC Viewer.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
+
+          cp ruvnc-viewer/target/release/ruvnc-viewer "$APP/Contents/MacOS/"
+
+          VERSION=$(grep '^version' ruvnc-viewer/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          sed -e "s/@VERSION@/$VERSION/g" \
+              -e "s/@BUILD@/0/g" \
+              -e 's|<string>vncviewer</string>|<string>ruvnc-viewer</string>|g' \
+              -e 's|com.tigervnc.tigervnc|com.backbenchdevs.ruvnc-viewer|g' \
+              -e 's|<string>TigerVNC</string>|<string>RuVNC Viewer</string>|g' \
+              -e 's|<string>tigervnc.icns</string>|<string>ruvnc-viewer.icns</string>|g' \
+              -e 's|<false/>|<true/>|g' \
+              release/Info.plist.in > "$APP/Contents/Info.plist"
+
+          mkdir -p icon.iconset
+          for size in 16 32 128 256 512; do
+            rsvg-convert -w $size -h $size media/icons/tigervnc.svg -o icon.iconset/icon_${size}x${size}.png
+            rsvg-convert -w $((size*2)) -h $((size*2)) media/icons/tigervnc.svg -o icon.iconset/icon_${size}x${size}@2x.png
+          done
+          iconutil -c icns icon.iconset -o "$APP/Contents/Resources/ruvnc-viewer.icns"
+
+      - name: Bundle dylibs and fix rpaths
+        run: |
+          APP="RuVNC Viewer.app"
+          cd "$APP/Contents"
+
+          while IFS= read -r lib; do
+            cp "$lib" Frameworks/
+            install_name_tool -change "$lib" "@executable_path/../Frameworks/$(basename "$lib")" MacOS/ruvnc-viewer
+          done < <(otool -L MacOS/ruvnc-viewer | awk '/\/opt\/homebrew|\/usr\/local/{print $1}')
+
+          changed=1
+          while [ "$changed" -eq 1 ]; do
+            changed=0
+            for dylib in Frameworks/*.dylib; do
+              while IFS= read -r lib; do
+                base=$(basename "$lib")
+                if [ ! -f "Frameworks/$base" ]; then
+                  cp "$lib" "Frameworks/$base"
+                  changed=1
+                fi
+                install_name_tool -change "$lib" "@executable_path/../Frameworks/$base" "$dylib" 2>/dev/null || true
+              done < <(otool -L "$dylib" | awk '/\/opt\/homebrew|\/usr\/local/{print $1}')
+            done
+          done
+
+          chmod u+w Frameworks/*.dylib
+
+          for dylib in Frameworks/*.dylib; do
+            install_name_tool -id "@executable_path/../Frameworks/$(basename "$dylib")" "$dylib"
+          done
+
+      - name: Ad-hoc codesign
+        run: |
+          APP="RuVNC Viewer.app"
+          find "$APP/Contents/Frameworks" -name '*.dylib' -exec codesign --force --sign - {} \;
+          codesign --force --sign - "$APP/Contents/MacOS/ruvnc-viewer"
+          codesign --force --sign - "$APP"
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "RuVNC Viewer" \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --icon "RuVNC Viewer.app" 150 200 \
+            --app-drop-link 450 200 \
+            "ruvnc-viewer-macos-arm64.dmg" \
+            "RuVNC Viewer.app" || true
+
+      - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: ruvnc-viewer-macos-arm64
-          path: ruvnc-viewer/target/release/ruvnc-viewer
+          path: ruvnc-viewer-macos-arm64.dmg
 
+  # ── Windows: NSIS installer ────────────────────────────────────────
   build-windows:
     name: Windows (x64)
-    needs: [test]
+    needs: [gate, test, detect-changes]
+    if: |
+      always() &&
+      (needs.gate.result == 'success' ||
+       (needs.test.result == 'success' &&
+        needs.detect-changes.outputs.src_changed == 'true' &&
+        startsWith(github.ref, 'refs/tags/')))
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     defaults:
       run:
         shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.pr_ref || github.ref }}
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
+          cache: true
           install: >-
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-rust
@@ -172,31 +369,45 @@ jobs:
             mingw-w64-x86_64-pixman
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-nsis
+            mingw-w64-x86_64-librsvg
+            mingw-w64-x86_64-imagemagick
 
       - name: Build
         working-directory: ruvnc-viewer
         run: cargo build --release
 
-      - name: Collect Windows artifacts
+      - name: Collect DLLs and generate icon
         run: |
           mkdir -p ruvnc-viewer/dist
           cp ruvnc-viewer/target/release/ruvnc-viewer.exe ruvnc-viewer/dist/
-          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
-            dllpath="$(which $dll 2>/dev/null || true)"
-            if [ -n "$dllpath" ]; then
-              cp "$dllpath" ruvnc-viewer/dist/
-            fi
-          done
 
-      - name: Upload binary
+          ldd ruvnc-viewer/target/release/ruvnc-viewer.exe \
+            | grep -i '/mingw64/' \
+            | awk '{print $3}' \
+            | xargs -I{} cp {} ruvnc-viewer/dist/
+
+          for size in 16 32 48 64 128 256; do
+            rsvg-convert -w $size -h $size media/icons/tigervnc.svg -o ruvnc-viewer/dist/icon-${size}.png
+          done
+          magick ruvnc-viewer/dist/icon-16.png ruvnc-viewer/dist/icon-32.png ruvnc-viewer/dist/icon-48.png \
+            ruvnc-viewer/dist/icon-64.png ruvnc-viewer/dist/icon-128.png ruvnc-viewer/dist/icon-256.png \
+            ruvnc-viewer/dist/ruvnc-viewer.ico
+
+      - name: Build NSIS installer
+        working-directory: ruvnc-viewer
+        run: makensis installer.nsi
+
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: ruvnc-viewer-windows-x64
-          path: ruvnc-viewer/dist/
+          path: ruvnc-viewer/ruvnc-viewer-setup.exe
 
+  # ── Release (tags only) ────────────────────────────────────────────
   release:
     name: Create Release
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-linux, build-macos-arm64, build-windows]
     runs-on: ubuntu-latest
     permissions:
@@ -208,23 +419,29 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Package release assets
+      - name: Prepare release files
         run: |
-          cd release-artifacts
-          for dir in ruvnc-viewer-*; do
-            cp ../ruvnc-viewer/LICENSE "$dir/"
-            cp ../ruvnc-viewer/NOTICE.md "$dir/"
-            tar czf "${dir}.tar.gz" "$dir"
-          done
+          mkdir -p release-files
+          cp release-artifacts/ruvnc-viewer-linux-x86_64/*.AppImage release-files/ || true
+          cp release-artifacts/ruvnc-viewer-macos-arm64/*.dmg release-files/ || true
+          cp release-artifacts/ruvnc-viewer-windows-x64/*.exe release-files/ || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/*.tar.gz
+          files: release-files/*
           body: |
             ## RuVNC Viewer ${{ github.ref_name }}
 
             Modern Rust/egui VNC viewer built on the TigerVNC protocol engine.
+
+            ### Downloads
+
+            | Platform | File |
+            |---|---|
+            | macOS (ARM64) | `ruvnc-viewer-macos-arm64.dmg` |
+            | Windows (x64) | `ruvnc-viewer-setup.exe` |
+            | Linux (x86_64) | `ruvnc-viewer-linux-x86_64.AppImage` |
 
             **License:** GPL-2.0-or-later
             **Source Code:** https://github.com/BackBenchDevs/tigervnc
