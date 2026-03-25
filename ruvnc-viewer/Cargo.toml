@@ -1,6 +1,6 @@
 [package]
 name = "ruvnc-viewer"
-version = "0.1.0"
+version = "0.2.0-dev.0"
 edition = "2021"
 description = "RuVNC Viewer - modern Rust/egui VNC viewer built on the TigerVNC protocol engine"
 license = "GPL-2.0-or-later"
