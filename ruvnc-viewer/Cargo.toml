@@ -5,6 +5,7 @@ edition = "2021"
 description = "RuVNC Viewer - modern Rust/egui VNC viewer built on the TigerVNC protocol engine"
 license = "GPL-2.0-or-later"
 build = "build.rs"
+publish = false
 
 [dependencies]
 eframe = { version = "0.31", default-features = false, features = [

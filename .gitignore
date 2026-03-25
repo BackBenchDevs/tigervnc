@@ -13,3 +13,18 @@ config.h
 cmake_install.cmake
 cmake_uninstall.cmake
 install_manifest.txt
+
+# IDE / editor folders
+.cursor/
+.idea/
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Build output
+build/
+
+# CMake temp files
+cmake/Modules/*.nk*
